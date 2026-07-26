@@ -97,8 +97,8 @@ chmod 0640 %{_sysconfdir}/fangfrisch/fangfrisch.conf
 # Create the directories after clamupdate exists so their ownership is correct.
 systemd-tmpfiles --create %{_tmpfilesdir}/fangfrisch.conf
 
-if [ "$1" -eq 1 ] || [ ! -f %{_localstatedir}/lib/fangfrisch/db.sqlite ]; then
-    # Create the database schema using the dedicated user provided by ClamAV.
+# Create the database schema using the dedicated user provided by ClamAV.
+if [ ! -f %{_localstatedir}/lib/fangfrisch/db.sqlite ]; then
     runuser -u clamupdate -- /bin/sh -c \
         'umask 027; exec %{_bindir}/fangfrisch \
             --conf %{_sysconfdir}/fangfrisch/fangfrisch.conf initdb'
