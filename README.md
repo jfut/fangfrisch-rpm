@@ -1,4 +1,4 @@
-# fangfrisch RPM Packaging
+# Fangfrisch RPM Packaging
 
 [![Tag](https://img.shields.io/github/tag/jfut/fangfrisch-rpm.svg)](https://github.com/jfut/fangfrisch-rpm/releases)
 [![License](https://img.shields.io/badge/license-GPLv3-blue)](https://github.com/jfut/fangfrisch-rpm/blob/main/LICENSE)
@@ -9,7 +9,13 @@ The generated RPM bundles Fangfrisch, the Python runtime, and its Python depende
 
 ## Installation
 
-Download an RPM package from the [Releases](https://github.com/jfut/fangfrisch-rpm/releases) page, or configure the RPM repository below on RHEL-compatible distributions.
+Fangfrisch depends on ClamAV. On RHEL-compatible distributions, enable the Extra Packages for Enterprise Linux (EPEL) repository first so that `dnf` can install this dependency:
+
+```bash
+dnf install epel-release
+```
+
+After enabling EPEL, download an RPM package from the [Releases](https://github.com/jfut/fangfrisch-rpm/releases) page, or configure the RPM repository below.
 
 ### Install with dnf-plugin-anyrepo
 
@@ -29,15 +35,36 @@ To upgrade the package, run:
 dnf upgrade fangfrisch
 ```
 
-After installation, review `/etc/fangfrisch/fangfrisch.conf` and enable the timer.
+### Configuration
+
+For details, see [the official Fangfrisch documentation](https://rseichter.github.io/fangfrisch/).
+
+The configuration file is located at `/etc/fangfrisch/fangfrisch.conf`.
+
+To enable automatic updates of ClamAV definition files with Fangfrisch, enable the timer:
 
 ```bash
-systemctl enable --now fangfrisch.timer
+systemctl enable fangfrisch.timer
+systemctl start fangfrisch.timer
+```
+
+By default, `fangfrisch.timer` runs once per hour, as configured in [`fangfrisch.timer`](rpmbuild/SOURCES/fangfrisch.timer). To change the execution interval, create a systemd override:
+
+```bash
+SYSTEMD_EDITOR=vi systemctl edit fangfrisch.timer
+```
+
+For example, to run Fangfrisch every 30 minutes, override the timer with the following settings:
+
+```ini
+[Timer]
+OnCalendar=*:0/30
+RandomizedDelaySec=29m
 ```
 
 The Fangfrisch executable is installed at `/usr/bin/fangfrisch`, the database at `/var/lib/fangfrisch/db.sqlite`, and downloaded signatures at `/var/lib/clamav`.
 
-## Usage
+## Build Usage
 
 ```bash
 Usage:
