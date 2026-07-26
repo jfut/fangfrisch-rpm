@@ -129,5 +129,5 @@ fi
 %{_tmpfilesdir}/fangfrisch.conf
 
 %changelog
-* Sat Jul 25 2026 Jun Futagawa <jfut@integ.jp> - 1.9.2-1
-- initial build
+* Sun Jul 26 2026 Jun Futagawa <jfut@integ.jp> - 1.9.2-1
+- feat: initial build
