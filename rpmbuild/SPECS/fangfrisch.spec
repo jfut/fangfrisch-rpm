@@ -46,9 +46,11 @@ install -m 0644 %{SOURCE3} fangfrisch-entrypoint.py
 install -m 0644 %{SOURCE4} fangfrisch-pyinstaller.spec
 
 %build
-export UV_CACHE_DIR="%{_builddir}/uv-cache"
-export UV_PYTHON_INSTALL_DIR="%{_builddir}/uv-python"
-export UV_PROJECT_ENVIRONMENT="%{_builddir}/uv-venv"
+# Keep uv state separate for each target architecture when the build directory
+# is shared between x86_64 and aarch64 builds.
+export UV_CACHE_DIR="%{_builddir}/uv-cache.%{_arch}"
+export UV_PYTHON_INSTALL_DIR="%{_builddir}/uv-python.%{_arch}"
+export UV_PROJECT_ENVIRONMENT="%{_builddir}/uv-venv.%{_arch}"
 
 # Use only the Python managed by uv; do not use the system Python at runtime.
 # Match the Python version used by Fangfrisch's official CI workflow.
