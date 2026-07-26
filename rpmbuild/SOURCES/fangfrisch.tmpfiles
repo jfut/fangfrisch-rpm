@@ -1,0 +1,2 @@
+# Create the directory for the Fangfrisch database and downloaded signatures.
+d /var/lib/fangfrisch 0750 clamupdate clamupdate - -

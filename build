@@ -1,0 +1,144 @@
+#!/bin/bash
+#
+# Build RPM with docker
+#
+# @author Jun Futagawa (jfut)
+
+set -euo pipefail
+
+DOCKER_RPMBUILD_DIR="/pkg/rpmbuild"
+SPEC_FILE_NAME="fangfrisch.spec"
+
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+HOST_RPMBUILD_DIR="${SCRIPT_DIR}/rpmbuild"
+
+PACKAGER="$(basename "${0}")"
+
+DEBUG="no"
+SIGN_RPMS="no"
+CONTAINER_GPG_KEY_PATH="/tmp/rpm-signing-key.asc"
+
+# Usage
+usage() {
+    cat << _EOF_
+Usage:
+    ${PACKAGER} [-d] [-s] [-h] BUILD_IMAGE_NAME
+
+    Options:
+        -d Debug mode.
+        -s Sign RPMs after building.
+
+    Signing environment variables:
+        GPG_KEY_PATH Path to an ASCII-armored private key file.
+        GPG_FINGERPRINT Optional GPG fingerprint or key ID used for rpmsign.
+        GPG_PASSPHRASE Passphrase for the private key.
+
+    Build for RHEL/AlmaLinux/Rocky Linux 10:
+        build almalinux:10
+
+    Build for RHEL/AlmaLinux/Rocky Linux 9:
+        build almalinux:9
+
+    Build for RHEL/AlmaLinux/Rocky Linux 8:
+        build almalinux:8
+_EOF_
+}
+
+validate_signing_env() {
+    if [[ "${SIGN_RPMS}" != "yes" ]]; then
+        return
+    fi
+
+    # Signing is optional, so fail early only when the user asked for it.
+    : "${GPG_KEY_PATH:?GPG_KEY_PATH is required when using -s}"
+    : "${GPG_PASSPHRASE:?GPG_PASSPHRASE is required when using -s}"
+
+    if [[ ! -f "${GPG_KEY_PATH}" ]]; then
+        echo "GPG_KEY_PATH does not exist: ${GPG_KEY_PATH}" >&2
+        exit 1
+    fi
+}
+
+setup_dir() {
+    # Build directories
+    for i in BUILD BUILDROOT RPMS SOURCES SPECS SRPMS tmp
+    do
+        DIR="${HOST_RPMBUILD_DIR}/${i}"
+        if [[ ! -d "${DIR}" ]]; then
+            mkdir "${DIR}"
+        fi
+    done
+}
+
+build() {
+    local BUILD_IMAGE="$1"
+    local BUILD_HOSTNAME="${BUILD_HOSTNAME:-fangfrisch-rpm-build-$$}"
+    local DOCKER_OPTIONS=""
+    local DOCKER_SIGN_OPTIONS=()
+    local docker_pkg_dir
+    local BUILD_CMD
+
+    docker_pkg_dir="$(dirname "${DOCKER_RPMBUILD_DIR}")"
+    BUILD_CMD="${docker_pkg_dir}/build-rpm ${DOCKER_RPMBUILD_DIR} ${SPEC_FILE_NAME}"
+    if [[ "${DEBUG}" = "yes" ]]; then
+        echo "# Manual Build: ${BUILD_CMD}"
+        DOCKER_OPTIONS="-it"
+        BUILD_CMD="/bin/bash"
+    fi
+
+    if [[ "${SIGN_RPMS}" = "yes" ]]; then
+        # Pass the signing material into the container only for signing builds.
+        DOCKER_SIGN_OPTIONS=(
+            -e "SIGN_RPMS=${SIGN_RPMS}"
+            -e "GPG_FINGERPRINT=${GPG_FINGERPRINT:-}"
+            -e "GPG_PASSPHRASE=${GPG_PASSPHRASE}"
+            -e "GPG_KEY_PATH=${CONTAINER_GPG_KEY_PATH}"
+            -v "${GPG_KEY_PATH}:${CONTAINER_GPG_KEY_PATH}:ro"
+        )
+    fi
+
+    # Update build image
+    docker pull "${BUILD_IMAGE}"
+
+    # Prepare rpmbuild directories before mounting the workspace into the container.
+    setup_dir
+
+    # Build
+    docker run \
+        --name "${BUILD_HOSTNAME}" \
+        -h "${BUILD_HOSTNAME}" \
+        -v "${SCRIPT_DIR}:${docker_pkg_dir}" \
+        "${DOCKER_SIGN_OPTIONS[@]}" \
+        --rm=true \
+        ${DOCKER_OPTIONS} \
+        "${BUILD_IMAGE}" \
+        /bin/bash -c "${BUILD_CMD}"
+}
+
+# Main
+main() {
+    [[ $# -lt 1 ]] && usage && exit 1
+
+    while getopts dsh OPT; do
+        case "${OPT}" in
+            "d" )
+                DEBUG="yes" ;;
+            "s" )
+                SIGN_RPMS="yes" ;;
+            "h" )
+                usage
+                exit 0
+                ;;
+            * )
+                usage
+                exit 1
+                ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+
+    validate_signing_env
+    build "${@}"
+}
+
+[[ ${#BASH_SOURCE[@]} = 1 ]] && main "${@}"

@@ -1,0 +1,17 @@
+[Unit]
+Description=Fangfrisch updates and verifies unofficial ClamAV signatures
+Documentation=https://rseichter.github.io/fangfrisch/
+ConditionPathExists=/var/lib/fangfrisch/db.sqlite
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=clamupdate
+ExecStart=/usr/bin/fangfrisch --conf /etc/fangfrisch/fangfrisch.conf refresh
+# Run the update with low resource priority.
+OOMScoreAdjust=1000
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+TimeoutStartSec=15min

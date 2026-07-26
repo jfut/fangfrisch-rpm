@@ -1,0 +1,54 @@
+name: test
+
+on:
+  pull_request:
+    paths-ignore:
+      - ".gitignore"
+      - "LICENSE"
+      - "README.md"
+  push:
+    branches:
+      - '*'
+    tags-ignore:
+      - '*'
+    paths-ignore:
+      - '.gitignore'
+      - 'LICENSE'
+      - 'README.md'
+
+permissions: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    strategy:
+      max-parallel: 20
+      matrix:
+        image:
+          - almalinux_8
+          - almalinux_9
+          - almalinux_10
+
+    env:
+      BUILD_IMAGE: ${{ matrix.image }}
+      BUILD_HOSTNAME: ${{ matrix.image }}.github.integ.jp
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build RPM
+        run: |
+          ./build $(echo ${BUILD_IMAGE} | sed 's/_/:/g')
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.image }}
+          path: rpmbuild/**/*.rpm

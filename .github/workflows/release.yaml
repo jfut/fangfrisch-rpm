@@ -1,0 +1,85 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    strategy:
+      max-parallel: 20
+      matrix:
+        image:
+          - almalinux_8
+          - almalinux_9
+          - almalinux_10
+
+    env:
+      BUILD_IMAGE: ${{ matrix.image }}
+      BUILD_HOSTNAME: ${{ matrix.image }}.github.integ.jp
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Write RPM signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          # The build script can mount this file into the builder container.
+          printf '%s' "${GPG_PRIVATE_KEY}" > "${RUNNER_TEMP}/rpm-signing-key.asc"
+          chmod 600 "${RUNNER_TEMP}/rpm-signing-key.asc"
+
+      - name: Build RPM
+        env:
+          GPG_KEY_PATH: ${{ runner.temp }}/rpm-signing-key.asc
+          GPG_FINGERPRINT: ${{ secrets.GPG_FINGERPRINT }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          # Build and sign RPMs in the same distro container.
+          ./build -s $(echo ${BUILD_IMAGE} | sed 's/_/:/g')
+
+      - name: Upload RPM artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rpm-${{ matrix.image }}
+          path: rpmbuild/**/*.rpm
+
+  publish:
+    runs-on: ubuntu-24.04
+    needs: build
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download RPM artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: rpm-*
+          merge-multiple: true
+          path: release-artifacts
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          distribution: goreleaser
+          version: v2.17.0
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
