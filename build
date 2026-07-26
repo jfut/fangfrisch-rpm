@@ -15,6 +15,7 @@ HOST_RPMBUILD_DIR="${SCRIPT_DIR}/rpmbuild"
 PACKAGER="$(basename "${0}")"
 
 DEBUG="no"
+PLATFORM=""
 SIGN_RPMS="no"
 CONTAINER_GPG_KEY_PATH="/tmp/rpm-signing-key.asc"
 
@@ -22,11 +23,12 @@ CONTAINER_GPG_KEY_PATH="/tmp/rpm-signing-key.asc"
 usage() {
     cat << _EOF_
 Usage:
-    ${PACKAGER} [-d] [-s] [-h] BUILD_IMAGE_NAME
+    ${PACKAGER} [-d] [-s] [-h] [-p PLATFORM] BUILD_IMAGE_NAME
 
     Options:
         -d Debug mode.
         -s Sign RPMs after building.
+        -p Docker platform, for example linux/arm64/v8.
 
     Signing environment variables:
         GPG_KEY_PATH Path to an ASCII-armored private key file.
@@ -41,6 +43,15 @@ Usage:
 
     Build for RHEL/AlmaLinux/Rocky Linux 8:
         build almalinux:8
+
+    Build an aarch64 package for RHEL/AlmaLinux/Rocky Linux 10:
+        build -p linux/arm64/v8 almalinux:10
+
+    Build an aarch64 package for RHEL/AlmaLinux/Rocky Linux 9:
+        build -p linux/arm64/v8 almalinux:9
+
+    Build an aarch64 package for RHEL/AlmaLinux/Rocky Linux 8:
+        build -p linux/arm64/v8 almalinux:8
 _EOF_
 }
 
@@ -73,16 +84,23 @@ setup_dir() {
 build() {
     local BUILD_IMAGE="$1"
     local BUILD_HOSTNAME="${BUILD_HOSTNAME:-fangfrisch-rpm-build-$$}"
-    local DOCKER_OPTIONS=""
+    local DOCKER_OPTIONS=()
     local DOCKER_SIGN_OPTIONS=()
     local docker_pkg_dir
     local BUILD_CMD
 
     docker_pkg_dir="$(dirname "${DOCKER_RPMBUILD_DIR}")"
     BUILD_CMD="${docker_pkg_dir}/build-rpm ${DOCKER_RPMBUILD_DIR} ${SPEC_FILE_NAME}"
+
+    # Enable cross-architecture execution when the caller selects a platform.
+    if [[ -n "${PLATFORM}" ]]; then
+        docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+        DOCKER_OPTIONS=(--platform "${PLATFORM}")
+    fi
+
     if [[ "${DEBUG}" = "yes" ]]; then
         echo "# Manual Build: ${BUILD_CMD}"
-        DOCKER_OPTIONS="-it"
+        DOCKER_OPTIONS+=( -it )
         BUILD_CMD="/bin/bash"
     fi
 
@@ -98,7 +116,7 @@ build() {
     fi
 
     # Update build image
-    docker pull "${BUILD_IMAGE}"
+    docker pull "${DOCKER_OPTIONS[@]}" "${BUILD_IMAGE}"
 
     # Prepare rpmbuild directories before mounting the workspace into the container.
     setup_dir
@@ -110,21 +128,28 @@ build() {
         -v "${SCRIPT_DIR}:${docker_pkg_dir}" \
         "${DOCKER_SIGN_OPTIONS[@]}" \
         --rm=true \
-        ${DOCKER_OPTIONS} \
+        "${DOCKER_OPTIONS[@]}" \
         "${BUILD_IMAGE}" \
         /bin/bash -c "${BUILD_CMD}"
+
+    # Disable QEMU registration after a cross-architecture build.
+    if [[ -n "${PLATFORM}" ]]; then
+        docker run --rm --privileged multiarch/qemu-user-static --reset -p no
+    fi
 }
 
 # Main
 main() {
     [[ $# -lt 1 ]] && usage && exit 1
 
-    while getopts dsh OPT; do
+    while getopts dhsp: OPT; do
         case "${OPT}" in
             "d" )
                 DEBUG="yes" ;;
             "s" )
                 SIGN_RPMS="yes" ;;
+            "p" )
+                PLATFORM="${OPTARG}" ;;
             "h" )
                 usage
                 exit 0

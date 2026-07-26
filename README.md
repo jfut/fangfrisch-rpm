@@ -68,11 +68,12 @@ The Fangfrisch executable is installed at `/usr/bin/fangfrisch`, the database at
 
 ```bash
 Usage:
-    build [-d] [-s] [-h] BUILD_IMAGE_NAME
+    build [-d] [-s] [-h] [-p PLATFORM] BUILD_IMAGE_NAME
 
     Options:
         -d Debug mode.
         -s Sign RPMs after building.
+        -p Docker platform, for example linux/arm64/v8.
 
     Signing environment variables:
         GPG_KEY_PATH Path to an ASCII-armored private key file.
@@ -87,6 +88,9 @@ Usage:
 
     Build for RHEL/AlmaLinux/Rocky Linux 8:
         build almalinux:8
+
+    Build an aarch64 package:
+        build -p linux/arm64/v8 almalinux:10
 ```
 
 ## Build RPM Packages with Docker
@@ -107,6 +111,12 @@ BUILD_HOSTNAME=el10.example.org ./build almalinux:10
 export GPG_KEY_PATH=/path/to/rpm-signing-key.asc
 read -r -s -p "GPG_PASSPHRASE: " GPG_PASSPHRASE; printf '\n'; export GPG_PASSPHRASE
 BUILD_HOSTNAME=el10.example.org ./build -s almalinux:10
+```
+
+- Build an aarch64 package
+
+```bash
+BUILD_HOSTNAME=el10.example.org ./build -p linux/arm64/v8 almalinux:10
 ```
 
 If the key file contains multiple secret keys, set `GPG_FINGERPRINT` explicitly.
