@@ -5,7 +5,7 @@
 %global _build_id_links none
 
 Name: fangfrisch
-Version: 1.9.2
+Version: 1.9.3
 Release: 1%{?dist}
 Summary: Update and verify unofficial ClamAV signatures
 License: GPL-3.0-or-later
@@ -129,5 +129,8 @@ fi
 %{_tmpfilesdir}/fangfrisch.conf
 
 %changelog
+* Mon Nov 23 2026 Jun Futagawa <jfut@integ.jp> - 1.9.3-1
+- Update Fangfrisch to 1.9.3
+
 * Sun Jul 26 2026 Jun Futagawa <jfut@integ.jp> - 1.9.2-1
 - feat: initial build
